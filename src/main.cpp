@@ -1,76 +1,109 @@
 #include <libopencm3/stm32/rcc.h> 
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/dma.h>
+#include <libopencm3/cm3/nvic.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/usart.h>
 
 #include "ADNS3080/ADNS3080.hpp"
-#include "setup/setup.hpp"
+#include "SetupPeriph/SetupPeriph.hpp"
 
-// Схема подключения:
-//      Датчик  STM32F407
-//       NСS       PB9
-//       SCK       PB10
-//       MISO      PB14
-//       MOSI      PB15
-//       RST       PA10
+// схема подключения
+// SPI1_NC => PA4 (good)
+// SPI1_SCK => PA5 (good)
+// SPI1_MISO => PA6 (good)
+// SPI1_MOSI => PB5 (good)
 
-// преобразование пикселя в символ
-// строка символов представляет собой значения псевдографики
-char pixelSymbol(int k) {
-    constexpr char scale[] = "#987654321-,.'` ";  // 16 символов
-    return scale[k >> 4];                         // сдвигаем справо на 4 бита
-}
+// настройка периферии
+SetupPeriph setupPer;
+
+// обработчик прерываний USART2_RX
+// void usart2_isr() {
+//     if (usart_get_flag(USART2, USART_FLAG_RXNE)) {
+//         // принимаем символ
+//         uint8_t rec_byte = usart_recv(USART2);
+//         // пересылаем его обратно (эхо)
+//         setupPer.DMA1_USART2_Tx_Write(&rec_byte, sizeof(rec_byte));
+//     }
+// }
+
+// буфферы для получения данных
+// буффер, откуда будут отправляться нули для инициализации получения данных по SPI1
+uint8_t zeroData[MOT_BURST_ALL_DATA] = {0, 0, 0, 0, 0, 0, 0};
+// буффер, куда будут записываться данные c датчика
+uint8_t rxBuffer[MOT_BURST_ALL_DATA] = {0, 0, 0, 0, 0, 0, 0};
+
+uint8_t txBuffer[MOT_BURST_ALL_DATA] = {0, 0, 0, 0, 0, 0, 0};
+volatile bool spiBusy = false;
+volatile bool usartBusy = false;
+
+// обработчик прерываний DMA2 (SPI1_RX)
+// void dma2_stream0_isr() {
+//     if (dma_get_interrupt_flag(DMA2, DMA_STREAM0, DMA_TCIF)) {
+//         // очищаем бит
+//         dma_clear_interrupt_flags(DMA2, DMA_STREAM0, DMA_TCIF);
+//         // отключаем потоки
+//         dma_disable_stream(DMA2, DMA_STREAM0);
+//         dma_disable_stream(DMA2, DMA_STREAM3);
+//         // отключаем DMA в SPI1
+//         spi_disable_rx_dma(SPI1);
+//         spi_disable_tx_dma(SPI1);
+
+//         // поднимаем линию для завершения передачи
+//         gpio_set(GPIOA, GPIO4);
+        
+//         // копируем данные для страховки от перезаписи
+//         for (int i = 0; i < 7; i++) {txBuffer[i] = rxBuffer[i];}
+
+//         // отправляем полученные данные о перемещении
+//         while (usartBusy) {}
+//         usartBusy = true;
+//         setupPer.DMA1_USART2_Tx_Write(txBuffer, 7);
+//         spiBusy = false;
+//     }
+// }
+
+// // обработчик прерываний DMA1 (USART2_TX)
+// void dma1_stream6_isr() {
+//     if (dma_get_interrupt_flag(DMA1, DMA_STREAM6, DMA_TCIF)) {
+//         // очищаем бит
+//         dma_clear_interrupt_flags(DMA1, DMA_STREAM6, DMA_TCIF);
+//         dma_disable_stream(DMA1, DMA_STREAM6);
+//         usart_disable_tx_dma(USART2);
+//         usartBusy = false;
+//     }
+// }
 
 int main(void) {
-    Clock_Setup();
-    Timer_Setup();
-    SPI2_Setup();
-    USART2_Setup();
+    // настраиваем периферию
+    setupPer.Clock_Setup();
+    setupPer.Timer_Setup();
+    setupPer.SPI1_Setup();
+    setupPer.USART2_Setup();
+    // setupPer.Interrupt_Setup();
+    setupPer.sensor.setup();
 
-    ADNS3080 sensor;
-    sensor.setup();     // настраиваем датчик
+    // настраиваем датчик
+    // static uint8_t welcome[] = "\r\nconfigure the sensor -- done\r\n";
+    // static uint8_t err[] = "\r\nconfigure the sensor -- ERROR\r\n";
+    // if (setupPer.sensor.setup())
+    //     setupPer.DMA1_USART2_Tx_Write(welcome, sizeof(welcome));
+    // else setupPer.DMA1_USART2_Tx_Write(err, sizeof(err));
 
     while (1) {
-        // массив для кадра
-        uint8_t frame[ADNS3080_PIXELS][ADNS3080_PIXELS];
-        
-        // принимаем кадр
-        sensor.frameCapture(frame);
+        // // ждем завершения предыдущей spi-транзакции
+        // while(spiBusy) {}
+        // spiBusy = true;
 
-        // ПЕРЕСЫЛАЕМ КАДР ПО UART
-        usart_send_blocking( USART2, '\n' );
-        usart_send_blocking( USART2, '\r' );
-
-        // проходим по всему массиву
-        for ( uint8_t i = 0; i < ADNS3080_PIXELS; i++ ) {
-            // Для каждого пикселя в строке
-            for (uint8_t j = 0; j < ADNS3080_PIXELS; j++) {
-                usart_send_blocking( USART2, pixelSymbol(frame[i][j] ));
-            }
-            usart_send_blocking( USART2, '\n' );
-            usart_send_blocking( USART2, '\r' );
-        }
-        usart_send_blocking( USART2, '\n' );
-        usart_send_blocking( USART2, '\r' );
-        
-        // // Активируем Slave
-        // gpio_clear(GPIOB, GPIO9);
-        
-        // // Мигаем светодиодом
-        // gpio_toggle(GPIOA, GPIO9);
-        
-        // uint8_t symbol = 'a'; 
-        // spi_send(SPI2, symbol);
-        // usart_send(USART2, symbol);
-        
-        // // Ждем пока данные не будут получены
-        // while (!(SPI_SR(SPI2) & SPI_SR_RXNE));
-        
-        // // Деактивируем Slave
-        // gpio_set(GPIOB, GPIO9);
-            
-        // for ( volatile uint32_t i =0; i < 2'000'000; i++ ) {
-        //     __asm__("NOP");
-        // }
+        // // опускаем линию
+        // gpio_clear(GPIOA, GPIO4);
+        // // отправляем адрес регистра для его чтения
+        // spi_send(SPI1, ADNS3080_MOTION_BURST);
+        // // ждем окончания отправки
+        // while (!(SPI_SR(SPI1) & SPI_SR_TXE));
+	    // // ждем реакции датчика
+	    // setupPer.sensor.delay_us(ADNS3080_T_SRAD_MOT);
+	    // // запускаем DMA для приема данных
+        // setupPer.DMA2_SPI1_Rx_Recv(zeroData, rxBuffer, 7);
     }
 }

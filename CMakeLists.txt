@@ -4,7 +4,7 @@ set(CMAKE_TOOLCHAIN_FILE cmake/arm-none-eabi-gcc.cmake)
 
 
 #================================================================================
-project(es LANGUAGES CXX C ASM)
+project(proj LANGUAGES CXX C ASM)
 set(DEVICE stm32f407vg)
 
 
