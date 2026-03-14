@@ -2,6 +2,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/usart.h>
+#include <cstdio>
 
 #include "ADNS3080/ADNS3080.hpp"
 #include "setup/setup.hpp"
@@ -28,30 +29,40 @@ int main(void) {
     USART2_Setup();
 
     ADNS3080 sensor;
-    sensor.setup();     // настраиваем датчик
+    sensor.setup();
+    for (int i = 0; i < 50000; i++) __asm__("nop"); // примерно 50 мс при 168 МГц
+    // if(sensor.setup())     // настраиваем датчик
+    //     usart_send_blocking( USART2, '1');
+    // else
+    //     usart_send_blocking( USART2, '0');
+
+    uint8_t product_value = sensor.readRegister(ADNS3080_PRODUCT_ID);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "ID = 0x%02X\r\n", product_value);
+    for (char *p = buf; *p; p++) usart_send_blocking(USART2, *p);
 
     while (1) {
-        // массив для кадра
-        uint8_t frame[ADNS3080_PIXELS][ADNS3080_PIXELS];
+        // // массив для кадра
+        // uint8_t frame[ADNS3080_PIXELS][ADNS3080_PIXELS];
         
-        // принимаем кадр
-        sensor.frameCapture(frame);
+        // // принимаем кадр
+        // sensor.frameCapture(frame);
 
-        // ПЕРЕСЫЛАЕМ КАДР ПО UART
-        usart_send_blocking( USART2, '\n' );
-        usart_send_blocking( USART2, '\r' );
+        // // ПЕРЕСЫЛАЕМ КАДР ПО UART
+        // usart_send_blocking( USART2, '\n' );
+        // usart_send_blocking( USART2, '\r' );
 
-        // проходим по всему массиву
-        for ( uint8_t i = 0; i < ADNS3080_PIXELS; i++ ) {
-            // Для каждого пикселя в строке
-            for (uint8_t j = 0; j < ADNS3080_PIXELS; j++) {
-                usart_send_blocking( USART2, pixelSymbol(frame[i][j] ));
-            }
-            usart_send_blocking( USART2, '\n' );
-            usart_send_blocking( USART2, '\r' );
-        }
-        usart_send_blocking( USART2, '\n' );
-        usart_send_blocking( USART2, '\r' );
+        // // проходим по всему массиву
+        // for ( uint8_t i = 0; i < ADNS3080_PIXELS; i++ ) {
+        //     // Для каждого пикселя в строке
+        //     for (uint8_t j = 0; j < ADNS3080_PIXELS; j++) {
+        //         usart_send_blocking( USART2, pixelSymbol(frame[i][j] ));
+        //     }
+        //     usart_send_blocking( USART2, '\n' );
+        //     usart_send_blocking( USART2, '\r' );
+        // }
+        // usart_send_blocking( USART2, '\n' );
+        // usart_send_blocking( USART2, '\r' );
         
         // // Активируем Slave
         // gpio_clear(GPIOB, GPIO9);

@@ -37,7 +37,6 @@ void Timer_Setup() {
 }
 
 void SPI2_Setup() {
-    
     // настраиваем светодиод на PA9
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO9);
 

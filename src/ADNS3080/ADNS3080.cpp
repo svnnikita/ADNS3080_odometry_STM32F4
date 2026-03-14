@@ -3,6 +3,9 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/timer.h>
+#include <libopencm3/stm32/usart.h>
+
+#include <cstdio>
 
 #include "ADNS3080.hpp"
 
@@ -45,7 +48,6 @@ void ADNS3080::writeRegister( const uint8_t reg, uint8_t output ) {
 // Чтение регистров
 uint8_t ADNS3080::readRegister( const uint8_t reg ) {
 	uint8_t output;
-    uint16_t dummy;
 
 	// устанавливаем низкий уровень для общения с датчиком
   	gpio_clear(GPIOB, GPIO9);
@@ -55,17 +57,6 @@ uint8_t ADNS3080::readRegister( const uint8_t reg ) {
 	while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
 		;
 
-	dummy = spi_read(SPI2);
-
-	// ждем реакции датчика
-	delay_us(ADNS3080_T_SRAD_MOT);
-
-	// отправляем любой бит для получения данных из указанного регистра 
-	spi_send(SPI2, 0x00);
-	while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
-			;
-
-	// получаем заветный бит
 	output = spi_read(SPI2);
 
 	// ждем, пока освободится шина
@@ -89,7 +80,7 @@ void ADNS3080::reset() {
 	gpio_clear(GPIOA, GPIO10);
 
 	// ждем реакции датчика
-	delay_us(ADNS3080_T_IN_RST);      
+	delay_us(50000);      
 }
 
 // Конфигурация датчика

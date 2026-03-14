@@ -83,9 +83,11 @@ class ADNS3080 {
 		// Read and write registers:
 		// Запись и чтение регистров. Методы используются внутри открытых методов.
 		void writeRegister( const uint8_t, uint8_t );
-		uint8_t readRegister( const uint8_t );
 		
-	public:   
+		
+	public: 
+		uint8_t readRegister( const uint8_t );
+	
 		void reset();
 		bool setup( const bool=false, const bool=false );
 		void delay_us(uint16_t delay);

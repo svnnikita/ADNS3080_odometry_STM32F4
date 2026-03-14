@@ -1,0 +1,17 @@
+[
+{
+  "directory": "/home/nikita/MACHINE/proj/build/src",
+  "command": "/usr/bin/arm-none-eabi-g++ -DSTM32F4 -DSTM32F4CCM -DSTM32F407VG -I/home/nikita/MACHINE/proj/src -I/home/nikita/MACHINE/proj/build/_deps/llibopencm3-src/include -g -ggdb3 -Os -fdata-sections -ffunction-sections -fno-common -fno-exceptions -Wall -Wextra -Wshadow -Wdouble-promotion -Wundef -Wconversion -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard -std=c++17 -o CMakeFiles/es.dir/main.cpp.obj -c /home/nikita/MACHINE/proj/src/main.cpp",
+  "file": "/home/nikita/MACHINE/proj/src/main.cpp"
+},
+{
+  "directory": "/home/nikita/MACHINE/proj/build/src",
+  "command": "/usr/bin/arm-none-eabi-g++ -DSTM32F4 -DSTM32F4CCM -DSTM32F407VG -I/home/nikita/MACHINE/proj/src -I/home/nikita/MACHINE/proj/build/_deps/llibopencm3-src/include -g -ggdb3 -Os -fdata-sections -ffunction-sections -fno-common -fno-exceptions -Wall -Wextra -Wshadow -Wdouble-promotion -Wundef -Wconversion -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard -std=c++17 -o CMakeFiles/es.dir/ADNS3080/ADNS3080.cpp.obj -c /home/nikita/MACHINE/proj/src/ADNS3080/ADNS3080.cpp",
+  "file": "/home/nikita/MACHINE/proj/src/ADNS3080/ADNS3080.cpp"
+},
+{
+  "directory": "/home/nikita/MACHINE/proj/build/src",
+  "command": "/usr/bin/arm-none-eabi-g++ -DSTM32F4 -DSTM32F4CCM -DSTM32F407VG -I/home/nikita/MACHINE/proj/src -I/home/nikita/MACHINE/proj/build/_deps/llibopencm3-src/include -g -ggdb3 -Os -fdata-sections -ffunction-sections -fno-common -fno-exceptions -Wall -Wextra -Wshadow -Wdouble-promotion -Wundef -Wconversion -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard -std=c++17 -o CMakeFiles/es.dir/setup/setup.cpp.obj -c /home/nikita/MACHINE/proj/src/setup/setup.cpp",
+  "file": "/home/nikita/MACHINE/proj/src/setup/setup.cpp"
+}
+]
