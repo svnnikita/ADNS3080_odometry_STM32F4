@@ -7,9 +7,6 @@
 #include <libopencm3/stm32/usart.h>
 
 #include "SetupPeriph.hpp"
-#include "ADNS3080/ADNS3080.hpp"
-
-ADNS3080 sensor;
 
 // тактирование
 void SetupPeriph::Clock_Setup() {
@@ -17,18 +14,18 @@ void SetupPeriph::Clock_Setup() {
     rcc_clock_setup_pll(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
     // тактируем линии
-    rcc_periph_clock_enable(RCC_GPIOA); // SPI1_NC, SPI1_SCK, SPI1_MISO
-    rcc_periph_clock_enable(RCC_GPIOB); // SPI1_MOSI
-    rcc_periph_clock_enable(RCC_GPIOC); // SPI3_MOSI, SPI3_MISO, SPI3_SCK
-    rcc_periph_clock_enable(RCC_GPIOD); // SPI3_NC
+    rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
+    // rcc_periph_clock_enable(RCC_GPIOD);
     // тактирование DMA
-    rcc_periph_clock_enable(RCC_DMA1);
-    rcc_periph_clock_enable(RCC_DMA2);
+    // rcc_periph_clock_enable(RCC_DMA1);
+    // rcc_periph_clock_enable(RCC_DMA2);
     // тактирование USART2
     rcc_periph_clock_enable(RCC_USART2);
     // тактирование SPI
     rcc_periph_clock_enable(RCC_SPI1);
-    // rcc_periph_clock_enable(RCC_SPI3);
+    rcc_periph_clock_enable(RCC_SPI3);
     // тактирование таймера TIM6
     rcc_periph_clock_enable(RCC_TIM6);
 }
@@ -46,56 +43,78 @@ void SetupPeriph::Timer_Setup() {
 // конфигурация DMA2 для получения данных по SPI1_RX
 // прием и передача данных по SPI происходит одновременно,
 // поэтому метод включает в себя конфигурацию DMA2 SPI1_TX
-// void SetupPeriph::DMA2_SPI1_Rx_Recv(uint8_t *zeroData, uint8_t *dataBuffer, uint16_t size) {
-//     // SPI1_TX, используем поток 3 и канал 3
-//     dma_stream_reset(DMA2, DMA_STREAM3);
-//     dma_set_peripheral_address(DMA2, DMA_STREAM3, (uint32_t)SPI1_DR);
-//     dma_set_memory_address(DMA2, DMA_STREAM3, (uint32_t)zeroData);
-//     dma_set_number_of_data(DMA2, DMA_STREAM3, size);
-//     // ИЗ ПАМЯТИ В ПЕРИФЕРИЮ
-//     dma_set_transfer_mode(DMA2, DMA_STREAM3, DMA_SxCR_DIR_MEM_TO_PERIPHERAL);
-//     dma_enable_memory_increment_mode(DMA2, DMA_STREAM3);
-//     dma_set_peripheral_size(DMA2, DMA_STREAM3, DMA_SxCR_PSIZE_8BIT);
-//     dma_set_memory_size(DMA2, DMA_STREAM3, DMA_SxCR_MSIZE_8BIT);
-//     dma_set_priority(DMA2, DMA_STREAM3, DMA_SxCR_PL_MEDIUM);
-//     dma_channel_select(DMA2, DMA_STREAM3, DMA_SxCR_CHSEL_3);
-//     dma_enable_stream(DMA2, DMA_STREAM3);
+void SetupPeriph::DMA2_SPI1_Rx_Recv(uint8_t *zeroData, uint8_t *dataBuffer, uint16_t size) {
+    // SPI1_TX, используем поток 3 и канал 3
+    // dma_stream_reset(DMA2, DMA_STREAM3);
+    // dma_set_peripheral_address(DMA2, DMA_STREAM3, (uint32_t)SPI1_DR);
+    // dma_set_memory_address(DMA2, DMA_STREAM3, (uint32_t)zeroData);
+    // dma_set_number_of_data(DMA2, DMA_STREAM3, size);
+    // // ИЗ ПАМЯТИ В ПЕРИФЕРИЮ
+    // dma_set_transfer_mode(DMA2, DMA_STREAM3, DMA_SxCR_DIR_MEM_TO_PERIPHERAL);
+    // dma_enable_memory_increment_mode(DMA2, DMA_STREAM3);
+    // dma_set_peripheral_size(DMA2, DMA_STREAM3, DMA_SxCR_PSIZE_8BIT);
+    // dma_set_memory_size(DMA2, DMA_STREAM3, DMA_SxCR_MSIZE_8BIT);
+    // dma_set_priority(DMA2, DMA_STREAM3, DMA_SxCR_PL_MEDIUM);
+    // dma_channel_select(DMA2, DMA_STREAM3, DMA_SxCR_CHSEL_3);
+    // dma_enable_stream(DMA2, DMA_STREAM3);
     
-//     // SPI1_RX, используем поток 0 и канал 3
-//     dma_stream_reset(DMA2, DMA_STREAM0);
-//     dma_set_peripheral_address(DMA2, DMA_STREAM0, (uint32_t)SPI1_DR);
-//     dma_set_memory_address(DMA2, DMA_STREAM0, (uint32_t)dataBuffer);
-//     dma_set_number_of_data(DMA2, DMA_STREAM0, size);
-//     dma_set_transfer_mode(DMA2, DMA_STREAM0, DMA_SxCR_DIR_PERIPHERAL_TO_MEM);
-//     dma_enable_memory_increment_mode(DMA2, DMA_STREAM0);
-//     dma_set_peripheral_size(DMA2, DMA_STREAM0, DMA_SxCR_PSIZE_8BIT);
-//     dma_set_memory_size(DMA2, DMA_STREAM0, DMA_SxCR_MSIZE_8BIT);
-//     dma_set_priority(DMA2, DMA_STREAM0, DMA_SxCR_PL_HIGH);
-//     dma_enable_transfer_complete_interrupt(DMA2, DMA_STREAM0);
-//     dma_channel_select(DMA2, DMA_STREAM0, DMA_SxCR_CHSEL_3);
-//     dma_enable_stream(DMA2, DMA_STREAM0);
+    // // SPI1_RX, используем поток 0 и канал 3
+    // dma_stream_reset(DMA2, DMA_STREAM0);
+    // dma_set_peripheral_address(DMA2, DMA_STREAM0, (uint32_t)SPI1_DR);
+    // dma_set_memory_address(DMA2, DMA_STREAM0, (uint32_t)dataBuffer);
+    // dma_set_number_of_data(DMA2, DMA_STREAM0, size);
+    // dma_set_transfer_mode(DMA2, DMA_STREAM0, DMA_SxCR_DIR_PERIPHERAL_TO_MEM);
+    // dma_enable_memory_increment_mode(DMA2, DMA_STREAM0);
+    // dma_set_peripheral_size(DMA2, DMA_STREAM0, DMA_SxCR_PSIZE_8BIT);
+    // dma_set_memory_size(DMA2, DMA_STREAM0, DMA_SxCR_MSIZE_8BIT);
+    // dma_set_priority(DMA2, DMA_STREAM0, DMA_SxCR_PL_HIGH);
+    // dma_enable_transfer_complete_interrupt(DMA2, DMA_STREAM0);
+    // dma_channel_select(DMA2, DMA_STREAM0, DMA_SxCR_CHSEL_3);
+    // dma_enable_stream(DMA2, DMA_STREAM0);
 
-//     spi_enable_tx_dma(SPI1);
-//     spi_enable_rx_dma(SPI1);
-// }
+    // spi_enable_tx_dma(SPI1);
+    // spi_enable_rx_dma(SPI1);
+}
 
-// // конфигурация DMA1 для отправки данных по USART2
-// void SetupPeriph::DMA1_USART2_Tx_Write(uint8_t *data, uint16_t size) {
-//     // используем поток 6, канал 4 для USART2_TX
-//     dma_stream_reset(DMA1, DMA_STREAM6);
-//     dma_set_peripheral_address(DMA1, DMA_STREAM6, (uint32_t)&USART2_DR);
-//     dma_set_memory_address(DMA1, DMA_STREAM6, (uint32_t)data);
-//     dma_set_number_of_data(DMA1, DMA_STREAM6, size);
-//     dma_set_transfer_mode(DMA1, DMA_STREAM6, DMA_SxCR_DIR_MEM_TO_PERIPHERAL);
-//     dma_enable_memory_increment_mode(DMA1, DMA_STREAM6);
-//     dma_set_peripheral_size(DMA1, DMA_STREAM6, DMA_SxCR_PSIZE_8BIT);
-//     dma_set_memory_size(DMA1, DMA_STREAM6, DMA_SxCR_MSIZE_8BIT);
-//     dma_set_priority(DMA1, DMA_STREAM6, DMA_SxCR_PL_MEDIUM);
-//     dma_enable_transfer_complete_interrupt(DMA1, DMA_STREAM6);
-//     dma_channel_select(DMA1, DMA_STREAM6, DMA_SxCR_CHSEL_4);
-//     dma_enable_stream(DMA1, DMA_STREAM6);
-//     usart_enable_tx_dma(USART2);
-// }
+// конфигурируем выводы для управления датчиком (reset и npd)
+void SetupPeriph::ADNS3080pinsSetup() {
+    // датчик 1
+
+    // ВЫВОД ДЛЯ РЕСЕТ И НПД МОЖНО ПЕРЕДАТЬ В КОНСТРУКТОРЕ!!!!!!!!!!!!!!
+
+    // настраиваем вывод NPD для нормальной работы датчика
+    // этот и следующий выводы управляются программно в ADNS3080.cpp
+    gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
+    gpio_set(GPIOC, GPIO0);
+    // настраиваем вывод RESET и устанавливаем его в ноль
+    gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO1);
+    gpio_clear(GPIOC, GPIO1);
+
+    // датчик 2
+    gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO2);
+    gpio_set(GPIOC, GPIO2);
+    // настраиваем вывод RESET и устанавливаем его в ноль
+    gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO3);
+    gpio_clear(GPIOC, GPIO3);
+}
+
+// конфигурация DMA1 для отправки данных по USART2
+void SetupPeriph::DMA1_USART2_Tx_Write(uint8_t *data, uint16_t size) {
+    // используем поток 6, канал 4 для USART2_TX
+    // dma_stream_reset(DMA1, DMA_STREAM6);
+    // dma_set_peripheral_address(DMA1, DMA_STREAM6, (uint32_t)&USART2_DR);
+    // dma_set_memory_address(DMA1, DMA_STREAM6, (uint32_t)data);
+    // dma_set_number_of_data(DMA1, DMA_STREAM6, size);
+    // dma_set_transfer_mode(DMA1, DMA_STREAM6, DMA_SxCR_DIR_MEM_TO_PERIPHERAL);
+    // dma_enable_memory_increment_mode(DMA1, DMA_STREAM6);
+    // dma_set_peripheral_size(DMA1, DMA_STREAM6, DMA_SxCR_PSIZE_8BIT);
+    // dma_set_memory_size(DMA1, DMA_STREAM6, DMA_SxCR_MSIZE_8BIT);
+    // dma_set_priority(DMA1, DMA_STREAM6, DMA_SxCR_PL_MEDIUM);
+    // dma_enable_transfer_complete_interrupt(DMA1, DMA_STREAM6);
+    // dma_channel_select(DMA1, DMA_STREAM6, DMA_SxCR_CHSEL_4);
+    // dma_enable_stream(DMA1, DMA_STREAM6);
+    // usart_enable_tx_dma(USART2);
+}
 
 // запуск режима Motion Burst
 // void SetupPeriph::startMotionBurstDMA() {
@@ -130,18 +149,10 @@ void SetupPeriph::Timer_Setup() {
 // }
 
 void SetupPeriph::SPI1_Setup() {
-    // настраиваем вывод NPD для нормальной работы датчика
-    // этот и следующий выводы управляются программно в ADNS3080.cpp
-    gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO1);
-    gpio_set(GPIOB, GPIO1);
-
-    // настраиваем вывод RESET и устанавливаем его в ноль
-    gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
-    gpio_clear(GPIOB, GPIO0);
-
     // конфигурируем порты SPI1 на альтернативные функции:
     // SPI1_NC (SPI1_NSS) = PA4
     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO4);
+    gpio_set(GPIOA, GPIO4);
 
     // SPI1_SCK = PA5, SPI1_MISO = PA6, SPI1_MOSI = PA7
     gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5 | GPIO6 | GPIO7);
@@ -169,44 +180,33 @@ void SetupPeriph::SPI1_Setup() {
     spi_enable(SPI1);
 }
 
-// void SetupPeriph::SPI3_Setup() {
-    
-//     // настраиваем светодиод на PA9
-//     // gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO9);
+void SetupPeriph::SPI3_Setup() {
+    // конфигурируем вывод chip select
+    // SPI3_NC (SPI3_NSS) = PA15
+    gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO15);
 
-//     // настраиваем вывод для перезагрузки датчика и устанавливаем его в ноль
-//     // gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
-//     // gpio_clear(GPIOB, GPIO0);
+    // конфигурируем выводы тактирования, miso и mosi
+    // SPI3_SCK = PB3, SPI3_MISO = PB4, SPI3_MOSI = PB5
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO3 | GPIO4 | GPIO5);
+    gpio_set_af(GPIOB, GPIO_AF6, GPIO3 | GPIO4 | GPIO5);
 
-//     // конфигурируем порты SPI3 на альтернативные функции:
-//     // SPI1_NC (SPI1_NSS) = PA4
-//     gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO4);
+    // перезапускаем SPI3
+    rcc_periph_reset_pulse(RST_SPI3);
 
-//     // SPI1_SCK = PA5, SPI1_MISO = PA6
-//     gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5 | GPIO6);
-//     gpio_set_af(GPIOA, GPIO_AF5, GPIO5 | GPIO6);
+    // настраиваем SPI3 как мастер
+    spi_init_master(SPI3, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
+                    SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
+                    SPI_CR1_CPHA_CLK_TRANSITION_2, 
+                    SPI_CR1_DFF_8BIT, 
+                    SPI_CR1_MSBFIRST);
 
-//     // SPI1_MOSI = PB5
-//     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5);
-//     gpio_set_af(GPIOB, GPIO_AF5, GPIO5);
+    // управляем NSS программно
+    spi_enable_software_slave_management(SPI3);
+    spi_set_nss_high(SPI3);
 
-//     // перезапускаем SPI3
-//     rcc_periph_reset_pulse(RST_SPI3);
-
-//     // настраиваем SPI3 как мастер
-//     spi_init_master(SPI3, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
-//                     SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
-//                     SPI_CR1_CPHA_CLK_TRANSITION_2, 
-//                     SPI_CR1_DFF_8BIT, 
-//                     SPI_CR1_MSBFIRST);
-
-//     // управляем NSS программно
-//     spi_enable_software_slave_management(SPI3);
-//     spi_set_nss_high(SPI3);
-
-//     // включаем SPI3
-//     spi_enable(SPI3);
-// }
+    // включаем SPI3
+    spi_enable(SPI3);
+}
 
 void SetupPeriph::USART2_Setup() {
     // настраиваем вывод USART2_TX
@@ -232,14 +232,14 @@ void SetupPeriph::USART2_Setup() {
 }
 
 // настраиваем прерывания
-// void SetupPeriph::Interrupt_Setup() {
-//     // приоритеты прерываний USART2
-//     nvic_set_priority(NVIC_USART2_IRQ, 0);
-//     nvic_enable_irq(NVIC_USART2_IRQ);
-//     // приоритеты DMA2
-//     nvic_set_priority(NVIC_DMA2_STREAM0_IRQ, 1);
-//     nvic_enable_irq(NVIC_DMA2_STREAM0_IRQ);
-//     // приоритеты DMA1
-//     nvic_set_priority(NVIC_DMA1_STREAM6_IRQ, 2);
-//     nvic_enable_irq(NVIC_DMA1_STREAM6_IRQ);
-// }
+void SetupPeriph::Interrupt_Setup() {
+    // приоритеты прерываний USART2
+    nvic_set_priority(NVIC_USART2_IRQ, 0);
+    nvic_enable_irq(NVIC_USART2_IRQ);
+    // приоритеты DMA2
+    nvic_set_priority(NVIC_DMA2_STREAM0_IRQ, 1);
+    nvic_enable_irq(NVIC_DMA2_STREAM0_IRQ);
+    // приоритеты DMA1
+    nvic_set_priority(NVIC_DMA1_STREAM6_IRQ, 2);
+    nvic_enable_irq(NVIC_DMA1_STREAM6_IRQ);
+}

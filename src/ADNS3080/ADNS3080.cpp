@@ -8,6 +8,22 @@
 
 #include "ADNS3080.hpp"
 
+// конструктор
+ADNS3080::ADNS3080(uint32_t cs_gpio_port,
+			 uint16_t cs_gpio_pin,	
+		     uint32_t spi,			
+			 uint32_t reset_gpio_port,
+			 uint16_t reset_gpio_pin) :
+	// инициализируем конфигурацию датчика
+	cs_gpio_port(cs_gpio_port), 
+	cs_gpio_pin(cs_gpio_pin),
+	spi(spi),
+	reset_gpio_port(reset_gpio_port),
+	reset_gpio_pin(reset_gpio_pin) 
+{
+
+}
+
 // Задержка в микросекундах
 void ADNS3080::delay_us( uint16_t delay ) {
 	// ждем реакции датчика
@@ -22,79 +38,73 @@ void ADNS3080::delay_us( uint16_t delay ) {
 // Запись в регистры
 void ADNS3080::writeRegister( const uint8_t reg, uint8_t output ) {
   	// устанавливаем низкий уровень для общения с датчиком
-  	gpio_clear(GPIOA, GPIO4);
+  	csLow();
+
   	// устанавливаем младший бит адреса регистра в единицу и отправляем данные
-	spi_send(SPI1, reg | 0x80);
+	spi_send(spi, reg | 0x80);
+
 	// ждем, пока отправятся данные	(пока бит TXE регистра SPI_SR не установлен)
-	while (!(SPI_SR(SPI1) & SPI_SR_TXE));
-	spi_send(SPI1, output);
-	while (!(SPI_SR(SPI1) & SPI_SR_TXE));
+	while (!(SPI_SR(spi) & SPI_SR_TXE));
+	spi_send(spi, output);
+	while (!(SPI_SR(spi) & SPI_SR_TXE));
+
     // ждем, пока освободится шина
-	while (SPI_SR(SPI1) & SPI_SR_BSY);	
+	while (SPI_SR(spi) & SPI_SR_BSY);	
+
 	// восстанавливаем высокий уровень для прекращения связи с датчиком
-	gpio_set(GPIOA, GPIO4);
+	csHigh();
+
 	// ждем реакции датчика
 	delay_us(ADNS3080_T_SWW);
 }
 
 // Чтение регистров
 uint8_t ADNS3080::readRegister( const uint8_t reg ) {
-	uint8_t output;	// полезные данные
-    uint8_t dummy;	// случайные данные
+	// перменная для полученного из регистра значения
+    uint8_t output;
+
 	// устанавливаем низкий уровень для общения с датчиком
-  	gpio_clear(GPIOA, GPIO4);
+  	csLow();
+
 	// отправляем адрес регистра (младший бит в нуле -- режим чтения)
-	spi_send(SPI1, reg);
-	while (!(SPI_SR(SPI1) & SPI_SR_RXNE));
-	dummy = spi_read(SPI1);
-	// ждем реакции датчика
-	delay_us(ADNS3080_T_SRAD_MOT);
-	// отправляем любой бит для получения данных из указанного регистра 
-	spi_send(SPI1, 0x00);
-	while (!(SPI_SR(SPI1) & SPI_SR_RXNE));
-	// получаем заветный бит
-	output = spi_read(SPI1);
+	spi_send(spi, reg);
+	while (!(SPI_SR(spi) & SPI_SR_RXNE));
+
+	output = spi_read(spi);
+
 	// ждем, пока освободится шина
-	while (SPI_SR(SPI1) & SPI_SR_BSY);
+	while (SPI_SR(spi) & SPI_SR_BSY);
+	
 	// отключаем линию
-	gpio_set(GPIOA, GPIO4);
+	csHigh();
+
+	// возвращаем полученное значение регистра
 	return output;
 }
 
-
-// Перезагрузка датчика
-void ADNS3080::reset() {
-	// подаем на вывод перезагрузки высокий сигнал
-	gpio_set(GPIOB, GPIO0);
-	// ждем реакции датчика
-	delay_us(ADNS3080_T_PW_RESET);
-	// опускаем сигнал
-	gpio_clear(GPIOB, GPIO0);
-	// ждем реакции датчика
-	delay_us(50000);      
-}
-
-
 // Конфигурация датчика
 bool ADNS3080::setup( const bool led_mode, const bool resolution ) {
-	// опускаем линию SPI1_NC и перезагружаем датчик
-	gpio_set(GPIOA, GPIO4);
+	// перезапускаем датчик
 	reset();
+
 	// конфигурируем датчик:
 	//                           LED Shutter    High resolution
-	uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;     
+	uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;
+	
+	// записываем сформированную конфигурацию в соответствующий регистр
 	writeRegister( ADNS3080_CONFIGURATION_BITS, mask );
+	
 	// проверяем подключение
-	// if( readRegister(ADNS3080_PRODUCT_ID) == ADNS3080_PRODUCT_ID_VALUE ) return true;
-	// else return false;
-	uint8_t id = readRegister(ADNS3080_PRODUCT_ID);
-	char buf[32];
-	snprintf(buf, sizeof(buf), "Read ID: 0x%02X\r\n", id);
-	for (int i = 0; buf[i]; i++) {
-        usart_send_blocking(USART2, buf[i]);
-    }
+	if( readRegister(ADNS3080_PRODUCT_ID) == ADNS3080_PRODUCT_ID_VALUE ) return true;
+	else return false;
+	// uint8_t id = readRegister(ADNS3080_PRODUCT_ID);
+	// char buf[32];
+	// snprintf(buf, sizeof(buf), "Read ID: 0x%02X\r\n", id);
+	// for (int i = 0; buf[i]; i++) {
+    //     usart_send_blocking(USART2, buf[i]);
+    // }
     
-    return (id == ADNS3080_PRODUCT_ID_VALUE);
+    // return (id == ADNS3080_PRODUCT_ID_VALUE);
 }
 
 // Очистка регистров перемещения, DELTA_X, DELTA_Y

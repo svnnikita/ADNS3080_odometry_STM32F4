@@ -1,4 +1,5 @@
 /* Хэдер-файл библиотеки ADNS3080.h */
+#include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 
 #ifndef ADNS3080_h
@@ -69,22 +70,57 @@ constexpr uint8_t ADNS3080_MOTION_BURST      {0x50};
 // Содержит уникальный идентификатор, присвоенный ADNS-3080
 constexpr uint8_t ADNS3080_PRODUCT_ID_VALUE  {0x17};
 
-class ADNS3080 {  
+class ADNS3080 {
+	// передадим в конструктор параметры для конфигурации периферии
+	ADNS3080(uint32_t cs_gpio_port,		// группа выводов, на которой расположен используемый SPI
+			 uint16_t cs_gpio_pin,		// вывод, на котором расположен Chip Select
+		     uint32_t spi,				// номер используемого SPI
+			 uint32_t reset_gpio_port,	// группа выводов, на котором расположен вывод reset
+			 uint16_t reset_gpio_pin);	// вывод, на котором расположен reset
 private:
-	// Read and write registers:
-	// Запись и чтение регистров. Методы используются внутри открытых методов.
-	void writeRegister(const uint8_t, uint8_t);
+	// сведения об используемом SPI получаем из конструктора
+	uint32_t cs_gpio_port;
+	uint16_t cs_gpio_pin;
+	uint32_t spi;
+	// данные об выводе для перезагрузки датчика
+	uint32_t reset_gpio_port;
+	uint16_t reset_gpio_pin;
 	
-	
-public: 
-	uint8_t readRegister( const uint8_t );
+	// опускаем chip select для связи с датчиком
+	void csLow() { gpio_clear( cs_gpio_port, cs_gpio_pin ); }
+	// поднимаем chip select для завершения связи
+	void csHigh() { gpio_set( cs_gpio_port, cs_gpio_pin); }
+	// перезагружаем датчик
+	void reset() 
+	{
+		// подаем на вывод перезагрузки высокий сигнал
+		gpio_set(reset_gpio_port, reset_gpio_pin);
+		// ждем реакции датчика
+		delay_us(ADNS3080_T_PW_RESET);
+		// опускаем сигнал
+		gpio_clear(reset_gpio_port, reset_gpio_pin);
+		// ждем реакции датчика
+		delay_us(ADNS3080_T_SRAD);      
+	}
 
-	void reset();
+	// чтение регистров датчика
+	uint8_t readRegister( const uint8_t );
+	// запись в регистры датчика
+	void writeRegister( const uint8_t, uint8_t );
+	
+public:
+	// инициализация датчика
 	bool setup(const bool=false, const bool=false);
-	void delay_us(uint16_t delay);
+	// функция задержки для корректной работы датчика
+	void delay_us( uint16_t delay );
+
+	// очистка регистра данных о перемещении
 	void motionClear();
+	// запуск передачи данных о качестве поверхности и перемещении
 	void motionBurst(uint8_t *buffer);
+	// запуск передачи данных только о перемещении
 	// void displacement();
+	// запуск передачи сырого изображения с датчика
 	void frameCapture( uint8_t[ADNS3080_PIXELS][ADNS3080_PIXELS] );
 };
 
