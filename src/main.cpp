@@ -7,81 +7,42 @@
 #include "ADNS3080/ADNS3080.hpp"
 #include "setup/setup.hpp"
 
-// Схема подключения:
-//      Датчик  STM32F407
-//       NСS       PB9
-//       SCK       PB10
-//       MISO      PB14
-//       MOSI      PB15
-//       RST       PA10
+// объект конфигуратора периферии
+SetupPeriph peripheral = SetupPeriph();
 
-// преобразование пикселя в символ
-// строка символов представляет собой значения псевдографики
-char pixelSymbol(int k) {
-    constexpr char scale[] = "#987654321-,.'` ";  // 16 символов
-    return scale[k >> 4];                         // сдвигаем справо на 4 бита
-}
+// создадим структуру с наименованиями выводов датчика
+const Adns3080Pins l_camera_pins = {
+    .cs_gpio_port = GPIOA,      
+    .cs_gpio_pin = GPIO4,
+    .spi = SPI1,
+    .reset_gpio_port = GPIOB,
+    .reset_gpio_pin = GPIO0
+};
+
+// объект левой камеры
+ADNS3080 l_camera = ADNS3080(l_camera_pins);
 
 int main(void) {
-    Clock_Setup();
-    Timer_Setup();
-    SPI2_Setup();
-    USART2_Setup();
+    // сконфигурируем датчик
+    // включаем подсветку и устанавливаем высокое разрешение
+    volatile bool res = l_camera.setup(true, true);
+    l_camera.delay_us(ADNS3080_T_SWW);
 
-    ADNS3080 sensor;
-    sensor.setup();
-    for (int i = 0; i < 50000; i++) __asm__("nop"); // примерно 50 мс при 168 МГц
-    // if(sensor.setup())     // настраиваем датчик
-    //     usart_send_blocking( USART2, '1');
-    // else
-    //     usart_send_blocking( USART2, '0');
+    // прочитаем id датчика
+    const bool led_mode = true; 
+    const bool resolution = true;
+    uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;
 
-    uint8_t product_value = sensor.readRegister(ADNS3080_PRODUCT_ID);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "ID = 0x%02X\r\n", product_value);
-    for (char *p = buf; *p; p++) usart_send_blocking(USART2, *p);
+    uint8_t result = l_camera.readRegister(ADNS3080_CONFIGURATION_BITS);
+    l_camera.delay_us(ADNS3080_T_SWW);
 
+    if (result == mask) {
+       usart_send_blocking(USART2, 't');
+    } else { 
+        usart_send_blocking(USART2, 'f');
+    }
+        
     while (1) {
-        // // массив для кадра
-        // uint8_t frame[ADNS3080_PIXELS][ADNS3080_PIXELS];
         
-        // // принимаем кадр
-        // sensor.frameCapture(frame);
-
-        // // ПЕРЕСЫЛАЕМ КАДР ПО UART
-        // usart_send_blocking( USART2, '\n' );
-        // usart_send_blocking( USART2, '\r' );
-
-        // // проходим по всему массиву
-        // for ( uint8_t i = 0; i < ADNS3080_PIXELS; i++ ) {
-        //     // Для каждого пикселя в строке
-        //     for (uint8_t j = 0; j < ADNS3080_PIXELS; j++) {
-        //         usart_send_blocking( USART2, pixelSymbol(frame[i][j] ));
-        //     }
-        //     usart_send_blocking( USART2, '\n' );
-        //     usart_send_blocking( USART2, '\r' );
-        // }
-        // usart_send_blocking( USART2, '\n' );
-        // usart_send_blocking( USART2, '\r' );
-        
-        // // Активируем Slave
-        // gpio_clear(GPIOB, GPIO9);
-        
-        // // Мигаем светодиодом
-        // gpio_toggle(GPIOA, GPIO9);
-        
-        // uint8_t symbol = 'a'; 
-        // spi_send(SPI2, symbol);
-        // usart_send(USART2, symbol);
-        
-        // // Ждем пока данные не будут получены
-        // while (!(SPI_SR(SPI2) & SPI_SR_RXNE));
-        
-        // // Деактивируем Slave
-        // gpio_set(GPIOB, GPIO9);
-            
-        // for ( volatile uint32_t i =0; i < 2'000'000; i++ ) {
-        //     __asm__("NOP");
-        // }
     }
 }

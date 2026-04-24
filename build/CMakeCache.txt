@@ -266,15 +266,6 @@ es_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 es_SOURCE_DIR:STATIC=/home/nikita/MACHINE/proj
 
-//Value Computed by CMake
-proj_BINARY_DIR:STATIC=/home/nikita/MACHINE/proj/build
-
-//Value Computed by CMake
-proj_IS_TOP_LEVEL:STATIC=ON
-
-//Value Computed by CMake
-proj_SOURCE_DIR:STATIC=/home/nikita/MACHINE/proj
-
 
 ########################
 # INTERNAL cache entries

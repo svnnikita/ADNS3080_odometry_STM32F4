@@ -5,156 +5,170 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/usart.h>
 
-#include <cstdio>
+#include <cstdio>	
 
 #include "ADNS3080.hpp"
 
-// Задержка в микросекундах
+// конструктор
+ADNS3080::ADNS3080(const Adns3080Pins &pins) 
+	: _cs_gpio_port(pins.cs_gpio_port), 
+	  _cs_gpio_pin(pins.cs_gpio_pin),
+	  _spi(pins.spi),
+	  _reset_gpio_port(pins.reset_gpio_port),
+	  _reset_gpio_pin(pins.reset_gpio_pin)
+{
+	// отправим сообщение для отладки
+    // usart_send_blocking(USART2, 'A');
+}
+
+
+// конфигурация датчика
+bool ADNS3080::setup(const bool led_mode, const bool resolution) 
+{
+	// перезапускаем датчик
+	reset();
+	
+	// конфигурируем датчик:
+	//                          LED Shutter     High resolution
+	uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;     
+	writeRegister(ADNS3080_CONFIGURATION_BITS, mask);
+
+
+    if (readRegister(ADNS3080_CONFIGURATION_BITS) == mask)
+    	return true;
+    else 
+        return false;
+}
+
+// задержка в микросекундах
 void ADNS3080::delay_us(uint16_t delay) {
 	// ждем реакции датчика
-	uint16_t start = timer_get_counter(TIM6);
+	uint32_t start = timer_get_counter(TIM6);
     while ((uint16_t)(timer_get_counter(TIM6) - start) < delay) {
 		__asm__("NOP");
 	}
 }
 
-// Запись в регистры
-void ADNS3080::writeRegister( const uint8_t reg, uint8_t output ) {
-  	// устанавливаем низкий уровень для общения с датчиком
-  	gpio_clear(GPIOB, GPIO9);
+// читаем регистры
+uint8_t ADNS3080::readRegister(const uint8_t reg)
+{
+	// переменная для значения из указанного регистра
+	uint8_t data;
 
-  	// устанавливаем младший бит адреса регистра в единицу и отправляем данные
-	spi_send(SPI2, reg | 0x80);
+    csLow();
 
-	// ждем, пока отправятся данные	(пока бит TXE регистра SPI_SR не установлен)
-	while (!(SPI_SR(SPI2) & SPI_SR_TXE))
-			;
+	// отправляем адрес регистра
+    spi_send(_spi, reg);
+	// ждём конец передачи адреса
+    while (!(SPI_SR(_spi) & SPI_SR_TXE));
 
-	spi_send(SPI2, output);
-	while (!(SPI_SR(SPI2) & SPI_SR_TXE))
-			;
+    // в зависимости от адреса регистра устанавливаем задержку
+	// для регистров проверки движения и запуска пакетного режима
+	// устанавливается задержка 75 мкс
+    if (reg == ADNS3080_MOTION || reg == ADNS3080_MOTION_BURST)
+        delay_us(ADNS3080_T_SRAD_MOT);
+    else
+		// для остальных регистров задержка 50 мкс
+        delay_us(ADNS3080_T_SRAD);
 
-    // ждем, пока освободится шина
-	while (SPI_SR(SPI2) & SPI_SR_BSY)
-			;
-			
-	// восстанавливаем высокий уровень для прекращения связи с датчиком
-	gpio_set(GPIOB, GPIO9);
-
-	// ждем реакции датчика
-	delay_us(ADNS3080_T_SWW);
-}
-
-// Чтение регистров
-uint8_t ADNS3080::readRegister( const uint8_t reg ) {
-	uint8_t output;
-
-	// устанавливаем низкий уровень для общения с датчиком
-  	gpio_clear(GPIOB, GPIO9);
-
-	// отправляем адрес регистра (младший бит в нуле -- режим чтения)
-	spi_send(SPI2, reg);
-	while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
-		;
-
-	output = spi_read(SPI2);
+	// отправляем dummy‑байт, генерируем тактовые импульсы 
+	// и одновременно получаем данные из регистра
+    spi_send(_spi, 0x00);    
+	// дожидаемся отправки dummy‑байта
+    while (!(SPI_SR(_spi) & SPI_SR_TXE));
+	// ждем, пока придут все данные
+    while (!(SPI_SR(_spi) & SPI_SR_RXNE));
+	// читаем принятые данные
+    data = spi_read(_spi);
 
 	// ждем, пока освободится шина
-	while (SPI_SR(SPI2) & SPI_SR_BSY);
-	
-	// отключаем линию
-	gpio_set(GPIOB, GPIO9);
+    while (SPI_SR(_spi) & SPI_SR_BSY);
 
-	return output;
+    csHigh();
+
+	delay_us(ADNS3080_T_SWW);
+
+    return data;
 }
 
-// Перезагрузка датчика
-void ADNS3080::reset() {
-	// подаем на вывод перезагрузки высокий сигнал
-	gpio_set(GPIOA, GPIO10);
+// записываем значения в регистры
+void ADNS3080::writeRegister(const uint8_t reg, uint8_t output) 
+{
+  	csLow();
+  	// ждём готовности ведомого устройства
+    while (!(SPI_SR(_spi) & SPI_SR_TXE));
 
-	// ждем реакции датчика
-	delay_us(ADNS3080_T_PW_RESET);
+	// устанавливаем бит 7 регистра в единицу для записи
+    spi_send(_spi, reg | 0x80);          
+    // ждём окончания отправки адреса
+    while (!(SPI_SR(_spi) & SPI_SR_TXE));
 
-	// опускаем сигнал
-	gpio_clear(GPIOA, GPIO10);
+	// отправляем данные
+    spi_send(_spi, output);              
+    // ждём окончания отправки данных
+    while (!(SPI_SR(_spi) & SPI_SR_TXE));
+    // ждём освобождения шины
+    while (SPI_SR(_spi) & SPI_SR_BSY);
 
-	// ждем реакции датчика
-	delay_us(50000);      
+    csHigh();
+
+    delay_us(ADNS3080_T_SWW);            
 }
 
-// Конфигурация датчика
-bool ADNS3080::setup( const bool led_mode, const bool resolution ) {
 
-	// отключаем датчик и перезагружаем
-	gpio_set(GPIOB, GPIO9);
-	reset();
-	
-	// конфигурируем датчик:
-	//                           LED Shutter    High resolution
-	uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;     
-	writeRegister( ADNS3080_CONFIGURATION_BITS, mask );
+// отправляет команду датчику на отправку данных о
+// качестве поверхности, движении и т.д.
+void ADNS3080::motionBurst(uint8_t *motion, int8_t *dx, int8_t *dy, 
+                     uint8_t *squal, uint16_t *shutter, uint8_t *max_pix)
+{
 
-	// проверяем подключение
-	if( readRegister(ADNS3080_PRODUCT_ID) == ADNS3080_PRODUCT_ID_VALUE ) return true;
-		else return false;
 }
 
-// восстановливаем пиксели следующего кадра:
-void ADNS3080::frameCapture( uint8_t output[ADNS3080_PIXELS][ADNS3080_PIXELS] ) {  
-	// переменная для приема мусорных данных
-	uint8_t dummy;
+
+// восстанавливаем пиксели следующего кадра:
+void ADNS3080::frameCapture(uint8_t output[ADNS3080_PIXELS][ADNS3080_PIXELS]) 
+{  
+	// первый пиксель:
+	uint8_t pixel = 0;
 
 	// отправляем значение в регистр
 	writeRegister(ADNS3080_FRAME_CAPTURE, 0x83);
 	
 	// опускаем линию и начинаем получение данных
-	gpio_clear(GPIOB, GPIO9);
-
-	// отправляем адрес регистра (младший бит в нуле -- режим чтения)
-	spi_send(SPI2, ADNS3080_PIXEL_BURST);
-	while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
-		;
-
-	dummy = spi_read(SPI2);
-
-	delay_us(ADNS3080_T_SRAD);
-
-	//-- первый пиксель:
-	uint8_t pixel = 0;
+	csLow();
 
 	// получаем пиксели до тех пор, пока не будет найден первый
 	while((pixel & 0B01000000) == 0) {
 		
 		// отправляем любой бит для получения данных из указанного регистра 
-		spi_send(SPI2, 0x00);	
-		while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
-			;
+		spi_send(_spi, 0x00);	
+		while (!(SPI_SR(_spi) & SPI_SR_RXNE));
 
 		// получаем пиксель
-		pixel = spi_read(SPI2);
+		pixel = spi_read(_spi);
 		
 		delay_us(ADNS3080_T_LOAD);  
 	}
 	
-	//-- анализируем первый кадр:
-	for( int y = 0; y < ADNS3080_PIXELS; y++ ) {
-		for( int x = 0; x < ADNS3080_PIXELS; x++ ) {  
+	// анализируем первый кадр:
+	for(int y = 0; y < ADNS3080_PIXELS; y++) {
+		for(int x = 0; x < ADNS3080_PIXELS; x++) {  
 		
 			// сохраняем и масштабируем полученный кадр
 			output[x][y] = pixel << 2; 
 
 			// получаем следующий пиксель
-			spi_send(SPI2, 0x00);
-			while (!(SPI_SR(SPI2) & SPI_SR_RXNE))
-				;
+			spi_send(_spi, 0x00);
+			while (!(SPI_SR(_spi) & SPI_SR_RXNE));
 
-			pixel = spi_read(SPI2);
+			pixel = spi_read(_spi);
 			delay_us(ADNS3080_T_LOAD);  
 		}
 	}
 
 	// отключаем линию
-	gpio_set(GPIOB, GPIO9);
+	csHigh();
+
+	// ждем реакцию датчика
 	delay_us(ADNS3080_T_LOAD + ADNS3080_T_BEXIT);
 }   	

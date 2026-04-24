@@ -23,7 +23,7 @@
 		[
 			"src/CMakeLists.txt",
 			"cmake/arm-none-eabi-gcc.cmake",
-			"build/CMakeFiles/3.22.1/CMakeSystem.cmake",
+			"/usr/share/cmake-3.22/Modules/CMakeDetermineSystem.cmake",
 			"CMakeLists.txt"
 		],
 		"nodes" : 
@@ -53,7 +53,7 @@
 			{
 				"command" : 2,
 				"file" : 2,
-				"line" : 6,
+				"line" : 124,
 				"parent" : 4
 			},
 			{
