@@ -10,12 +10,13 @@ class SetupPeriph
 {	 
 public:
     // конструктор с конфигурацией
-    SetupPeriph() {
+    SetupPeriph() 
+    {
         Clock_Setup();
         Timer_Setup();
         SPI1_Setup();
         // SPI2_Setup();
-        // SPI3_Setup();
+        SPI3_Setup();
         USART2_Setup();
         ADNS3080PinsSetup();
         

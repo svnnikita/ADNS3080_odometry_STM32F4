@@ -15,7 +15,8 @@ void SetupPeriph::Clock_Setup()
     // тактируем линии
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
-    // rcc_periph_clock_enable(RCC_GPIOD);
+    rcc_periph_clock_enable(RCC_GPIOD);
+    rcc_periph_clock_enable(RCC_GPIOE);
 
     // тактирование DMA
     // rcc_periph_clock_enable(RCC_DMA1);
@@ -27,7 +28,7 @@ void SetupPeriph::Clock_Setup()
     // тактирование SPI
     rcc_periph_clock_enable(RCC_SPI1);
     // rcc_periph_clock_enable(RCC_SPI2);
-    // rcc_periph_clock_enable(RCC_SPI3);
+    rcc_periph_clock_enable(RCC_SPI3);
 
     // тактирование таймера TIM6
     rcc_periph_clock_enable(RCC_TIM6);
@@ -54,6 +55,8 @@ void SetupPeriph::SPI1_Setup()
     // SCK = PA5, MISO = PA6, MOSI = PA7
     gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5 | GPIO6 | GPIO7);
     gpio_set_af(GPIOA, GPIO_AF5, GPIO5 | GPIO6 | GPIO7);
+
+    
     gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5 | GPIO7);
 
     rcc_periph_reset_pulse(RST_SPI1);
@@ -83,13 +86,14 @@ void SetupPeriph::SPI2_Setup()
     // SCK = PB10, MISO = PB14, MOSI = PB15
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 | GPIO14 | GPIO15);
     gpio_set_af(GPIOB, GPIO_AF5, GPIO10 | GPIO14 | GPIO15);
+    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10 | GPIO15);
 
     // перезапускаем SPI2
     rcc_periph_reset_pulse(RST_SPI2);
 
     // настраиваем SPI2 как мастер
     spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
-                    SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
+                    SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
                     SPI_CR1_CPHA_CLK_TRANSITION_1, 
                     SPI_CR1_DFF_8BIT, 
                     SPI_CR1_MSBFIRST);
@@ -104,20 +108,47 @@ void SetupPeriph::SPI2_Setup()
 
 void SetupPeriph::SPI3_Setup() 
 {
-    
+    // конфигурируем порты SPI3 на альтернативные функции:
+    // NSS = PA4
+    gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
+
+    gpio_set(GPIOD, GPIO0);
+
+    // SCK = PC10, MISO = PC11, MOSI = PC12
+    gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 | GPIO11 | GPIO12);
+    gpio_set_af(GPIOC, GPIO_AF5, GPIO10 | GPIO11 | GPIO12);
+
+    // устанавливаем параметры вывода для SCK и MOSI
+    gpio_set_output_options(GPIOC, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10 | GPIO12);
+
+    rcc_periph_reset_pulse(RST_SPI3);
+
+    // настраиваем SPI3 как мастер
+    spi_init_master(SPI3, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
+                    SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+                    SPI_CR1_CPHA_CLK_TRANSITION_1, 
+                    SPI_CR1_DFF_8BIT, 
+                    SPI_CR1_MSBFIRST);
+
+    // управляем NSS программно
+    spi_enable_software_slave_management(SPI3);
+    spi_set_nss_high(SPI3);
+
+    // включаем SPI1
+    spi_enable(SPI3);
 }
 
 
 // конфигурируем вспомогательные выводы датчика RST и NPD
 void SetupPeriph::ADNS3080PinsSetup()
 {
-    // // правый датчик 
-    // // настраиваем вывод RESET и устанавливаем его в ноль
-    // gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO1);
-    // gpio_clear(GPIOC, GPIO1);
-    // // настраиваем вывод NPD для нормальной работы датчика
-    // gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
-    // gpio_set(GPIOC, GPIO0);
+    // правый датчик 
+    // настраиваем вывод RESET и устанавливаем его в ноль
+    gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO1);
+    gpio_clear(GPIOD, GPIO1);
+    // настраиваем вывод NPD для нормальной работы датчика
+    gpio_mode_setup(GPIOE, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO1);
+    gpio_set(GPIOE, GPIO1);
     
     // левый датчик
     // настраиваем вывод RESET и устанавливаем его в ноль
