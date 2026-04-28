@@ -57,6 +57,18 @@ public:
 		uint16_t reset_gpio_pin;	// вывод, на котором расположен reset
 	};
 
+	// структура со значениями перемещения, качества повехности и т.д.
+	// используется в методе motionBurst()
+	struct MotionData
+	{
+		uint8_t motion;		// 1 -- движение было, 0 -- движения не было
+		int8_t dx;			// смещение по X
+		int8_t dy;			// смещение по Y
+        uint8_t squal;		// качество поверхности
+		uint16_t shutter;	// значение затвора (в тактах)
+		uint8_t max_pix;	// максимальное значение пикселя в кадре
+	};
+
 	// передадим в конструктор параметры для конфигурации периферии
 	ADNS3080(const Adns3080Pins &pins);	
 
@@ -96,11 +108,10 @@ public:
 
 	// читаем полные данные о перемещении
 	// для этого необходимо отправить адрес регистра ADNS3080_MOTION_BURST
-	void motionBurst(uint8_t *motion, int8_t *dx, int8_t *dy, 
-                     uint8_t *squal, uint16_t *shutter, uint8_t *max_pix);
+	void motionBurst(MotionData &data);
 
 	// запуск передачи данных только о перемещении
-	// void displacement( int8_t*, int8_t* );
+	void displacement(uint8_t *dx, uint8_t *dy);
 
 	// запуск передачи изображения с датчика
 	void frameCapture(uint8_t[ADNS3080_PIXELS][ADNS3080_PIXELS]);

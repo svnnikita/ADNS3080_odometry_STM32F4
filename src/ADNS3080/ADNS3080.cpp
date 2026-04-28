@@ -17,7 +17,7 @@ ADNS3080::ADNS3080(const Adns3080Pins &pins)
 	  _reset_gpio_port(pins.reset_gpio_port),
 	  _reset_gpio_pin(pins.reset_gpio_pin)
 {
-	
+
 }
 
 // сконфигурируем датчик
@@ -154,9 +154,47 @@ void ADNS3080::writeRegister(const uint8_t reg, uint8_t output)
 
 // отправляет команду датчику на отправку данных о
 // качестве поверхности, движении и т.д.
-void ADNS3080::motionBurst(uint8_t *motion, int8_t *dx, int8_t *dy, 
-                     uint8_t *squal, uint16_t *shutter, uint8_t *max_pix)
+void ADNS3080::motionBurst(MotionData &data)
 {
+	// опускаем линию
+	csLow();
+
+	// отправляем адрес регистра ADNS3080_MOTION_BURST
+	spi_xfer(_spi, ADNS3080_MOTION_BURST);
+
+	// ждем 75 мкс
+	delay_us(ADNS3080_T_SRAD_MOT);
+
+	// читаем 7 байт последовательно
+	uint8_t raw_motion = spi_xfer(_spi, 0x00);
+	data.motion = (raw_motion & 0x80) ? 1 : 0;	// 1 -- движение было, 0 -- движения не было
+
+	// смещения
+	data.dx = (uint8_t)spi_xfer(_spi, 0x00);
+	data.dy = (uint8_t)spi_xfer(_spi, 0x00);
+
+	// качество поверхности
+	data.squal = spi_xfer(_spi, 0x00);	
+	// значения затвора -- старший и младший биты
+	uint8_t shutter_upper = spi_xfer(_spi, 0x00);
+	uint8_t shutter_lower = spi_xfer(_spi, 0x00);
+	data.shutter = (uint16_t)((shutter_upper << 8) | shutter_lower);
+
+	// максимальное значение пикселя в кадре
+	data.max_pix = spi_xfer(_spi, 0x00);
+
+	csHigh();
+
+	delay_us(ADNS3080_T_SWW);
+}
+
+// запускает передачу данных о перемещении
+// для этого необходимо прочитать данные регистра ADNS3080_MOTION_BURST
+void ADNS3080::displacement(uint8_t *dx, uint8_t *dy)
+{
+	// опускаем линию
+	csLow();
+	
 
 }
 

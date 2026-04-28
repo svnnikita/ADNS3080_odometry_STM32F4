@@ -21,6 +21,9 @@ const ADNS3080::Adns3080Pins l_camera_pins = {
 // объект левой камеры
 ADNS3080 l_camera = ADNS3080(l_camera_pins);
 
+// структура данных о перемещении
+ADNS3080::MotionData l_data;
+
 // // создадим структуру с наименованиями выводов правого датчика
 // const ADNS3080::Adns3080Pins r_camera_pins = {
 //     .cs_gpio_port = GPIOD,      
@@ -48,8 +51,25 @@ int main(void) {
     } else { 
         usart_send_blocking(USART2, 'f');
     }
+
+    // создаем буффер для создания строки
+    char buffer[64];
         
     while (1) {
-       
+        // запускаем режим считывания смещения
+        l_camera.motionBurst(l_data);
+
+        // формируем строку
+        uint32_t len = 
+            sprintf(buffer, 
+                    "M: %d, X: %4d, Y: %4d, SQ: %3u, SH: %d, MP: %u\r\n", 
+                    l_data.motion, l_data.dx, l_data.dy, 
+                    l_data.squal, l_data.shutter, l_data.max_pix);
+        
+        // отправляем данные
+        for (uint32_t i = 0; i < len; i++) {
+            usart_send_blocking(USART2, buffer[i]);
+        }
+
     }
 }
