@@ -61,7 +61,12 @@ public:
 	ADNS3080(const Adns3080Pins &pins);	
 
 	// инициализация датчика
-	bool setup(const bool = false, const bool = false);
+	void setup(const bool led_mode = true, const bool resolution = true);
+
+	bool checkConfiguration(const bool led_mode, const bool resolution);
+
+	// загружаем SROM
+	void loadSROM(const uint8_t *srom_data, uint16_t length);
 
 	// функция задержки для корректной работы датчика
 	void delay_us(uint16_t delay);
@@ -82,7 +87,7 @@ public:
 		// опускаем сигнал
 		gpio_clear(_reset_gpio_port, _reset_gpio_pin);
 		// ждем реакции датчика
-		delay_us(ADNS3080_T_IN_RST + ADNS3080_T_IN_RST);      
+		delay_us(ADNS3080_T_IN_RST);      
 	}
 
 	// очищаем регистры смещения, DELTA_X и DELTA_Y

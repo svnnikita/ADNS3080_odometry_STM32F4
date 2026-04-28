@@ -5,6 +5,7 @@ add_executable(${CMAKE_PROJECT_NAME}
     main.cpp
     ADNS3080/ADNS3080.cpp
     setup/setup.cpp
+    # ethernet_config/ethernet_config.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME}

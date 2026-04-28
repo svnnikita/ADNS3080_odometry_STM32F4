@@ -10,11 +10,12 @@
 void SetupPeriph::Clock_Setup() 
 {
     // разгоняем мк
-    rcc_clock_setup_pll(&rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
+    rcc_clock_setup_pll(&rcc_hse_16mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
 
     // тактируем линии
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_GPIOC);
     rcc_periph_clock_enable(RCC_GPIOD);
     rcc_periph_clock_enable(RCC_GPIOE);
 
@@ -22,28 +23,48 @@ void SetupPeriph::Clock_Setup()
     // rcc_periph_clock_enable(RCC_DMA1);
     // rcc_periph_clock_enable(RCC_DMA2);
 
-    // тактирование USART2
-    rcc_periph_clock_enable(RCC_USART2);
+    // тактируем модуль MAC
+    // rcc_periph_clock_enable(RCC_ETHMAC);    // сам модуль
+    // rcc_periph_clock_enable(RCC_ETHMACTX);  // линии передачи
+    // rcc_periph_clock_enable(RCC_ETHMACRX);  // линии приема
+
+    // тактирование таймера TIM6
+    rcc_periph_clock_enable(RCC_TIM6);
 
     // тактирование SPI
     rcc_periph_clock_enable(RCC_SPI1);
     // rcc_periph_clock_enable(RCC_SPI2);
     rcc_periph_clock_enable(RCC_SPI3);
-
-    // тактирование таймера TIM6
-    rcc_periph_clock_enable(RCC_TIM6);
+    
+    // тактирование USART2
+    rcc_periph_clock_enable(RCC_USART2);
 }
 
 // конфигурация таймера для отсчета временных задержек
 void SetupPeriph::Timer_Setup() 
 {
 	// конфигурация вывода
-	gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO15);
-	timer_set_prescaler(TIM6, 168 - 1); // 168 МГц / 84 = 2 МГц
+    gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO15);
+    
+    // rcc_apb1_frequency = 42 МГц
+	timer_set_prescaler(TIM6, (rcc_apb1_frequency * 2) - 1);  // 84 МГц / 84 = 2 МГц
 	timer_set_period(TIM6, 0xFFFF);     // 1 мкс
 	timer_enable_counter(TIM6);
 }
 
+// конфигурация портов MAC контроллера
+void SetupPeriph::MAC_Setup()
+{
+    // MDIO
+    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO2);
+    gpio_set_af(GPIOA, GPIO_AF11, GPIO2);
+
+    // MDC
+    gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO1);
+    gpio_set_af(GPIOC, GPIO_AF11, GPIO1);
+}
+
+// SPI1 -- левая камера
 void SetupPeriph::SPI1_Setup() 
 {
     // конфигурируем порты SPI1 на альтернативные функции:
@@ -52,21 +73,41 @@ void SetupPeriph::SPI1_Setup()
 
     gpio_set(GPIOA, GPIO4);
 
-    // SCK = PA5, MISO = PA6, MOSI = PA7
-    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5 | GPIO6 | GPIO7);
-    gpio_set_af(GPIOA, GPIO_AF5, GPIO5 | GPIO6 | GPIO7);
+    // SCK = PA5, MISO = PA6
+    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5 | GPIO6);
+    gpio_set_af(GPIOA, GPIO_AF5, GPIO5 | GPIO6);
 
-    
-    gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5 | GPIO7);
+    // MOSI = PB5
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5);
+    gpio_set_af(GPIOB, GPIO_AF5, GPIO5);
+
+    // устанавливаем параметры вывода для SCK и MOSI
+    gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
+    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
 
     rcc_periph_reset_pulse(RST_SPI1);
 
     // настраиваем SPI1 как мастер
-    spi_init_master(SPI1, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
-                    SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-                    SPI_CR1_CPHA_CLK_TRANSITION_1, 
-                    SPI_CR1_DFF_8BIT, 
-                    SPI_CR1_MSBFIRST);
+    // т.к. SPI1 тактируется от APB2 (84 МГц), то 
+    // скорость SPI1 равна 84/64 = 1,3 МГц
+
+    spi_init_master(SPI1,                              
+                    // конфигурация тактового сигнала
+                    // скорость
+                    SPI_CR1_BAUDRATE_FPCLK_DIV_64,      
+
+                    // полярность CPOL = 0 -- вне процесса передачи данных
+                    // тактовый сигнал удерживается в нуле
+                    // при этом передний фронт, по которому происходит захват
+                    // данных, определяется как скачок 0-1
+                    0,
+                    
+                    // фаза CPHA = 0 -- данные фиксируются по
+                    // переднему фронту тактового сигнала
+                    0,
+
+                    SPI_CR1_DFF_8BIT,                   // формат кадра данных - 8 бит
+                    SPI_CR1_MSBFIRST);                  // первый бит - старший
 
     // управляем NSS программно
     spi_enable_software_slave_management(SPI1);
@@ -76,40 +117,11 @@ void SetupPeriph::SPI1_Setup()
     spi_enable(SPI1);
 }
 
-// SPI2 ИСПОЛЬЗУЕМ ДЛЯ ОТЛАДКИ
-void SetupPeriph::SPI2_Setup() 
-{
-    // конфигурируем порты SPI2 на альтернативные функции:
-    // NSS = PB9
-    gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO9);
-
-    // SCK = PB10, MISO = PB14, MOSI = PB15
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 | GPIO14 | GPIO15);
-    gpio_set_af(GPIOB, GPIO_AF5, GPIO10 | GPIO14 | GPIO15);
-    gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO10 | GPIO15);
-
-    // перезапускаем SPI2
-    rcc_periph_reset_pulse(RST_SPI2);
-
-    // настраиваем SPI2 как мастер
-    spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
-                    SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-                    SPI_CR1_CPHA_CLK_TRANSITION_1, 
-                    SPI_CR1_DFF_8BIT, 
-                    SPI_CR1_MSBFIRST);
-
-    // управляем NSS программно
-    spi_enable_software_slave_management(SPI2);
-    spi_set_nss_high(SPI2);
-
-    // включаем SPI2
-    spi_enable(SPI2);
-}
-
+// SPI3 -- правая камера
 void SetupPeriph::SPI3_Setup() 
 {
     // конфигурируем порты SPI3 на альтернативные функции:
-    // NSS = PA4
+    // NSS = PD0
     gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0);
 
     gpio_set(GPIOD, GPIO0);
@@ -124,9 +136,11 @@ void SetupPeriph::SPI3_Setup()
     rcc_periph_reset_pulse(RST_SPI3);
 
     // настраиваем SPI3 как мастер
-    spi_init_master(SPI3, SPI_CR1_BAUDRATE_FPCLK_DIV_64, 
+    // т.к. SPI3 тактируется от APB1 (42 МГц), то 
+    // скорость SPI3 равна 42/32 = 1,3 МГц
+    spi_init_master(SPI3, SPI_CR1_BAUDRATE_FPCLK_DIV_32, 
                     SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-                    SPI_CR1_CPHA_CLK_TRANSITION_1, 
+                    SPI_CR1_CPHA_CLK_TRANSITION_2, 
                     SPI_CR1_DFF_8BIT, 
                     SPI_CR1_MSBFIRST);
 
@@ -163,8 +177,10 @@ void SetupPeriph::ADNS3080PinsSetup()
 void SetupPeriph::USART2_Setup() 
 {
     // настраиваем вывод USART2_TX
-    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO2);
-    gpio_set_af(GPIOA, GPIO_AF7, GPIO2);
+    gpio_mode_setup(GPIOD, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5);
+    gpio_set_af(GPIOD, GPIO_AF7, GPIO5);
+
+    gpio_set_output_options(GPIOD, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
 
     // настраиваем UART
     usart_set_baudrate(USART2, BAUD_SPEED);

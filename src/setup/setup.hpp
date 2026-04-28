@@ -14,8 +14,8 @@ public:
     {
         Clock_Setup();
         Timer_Setup();
+        // MAC_Setup();
         SPI1_Setup();
-        // SPI2_Setup();
         SPI3_Setup();
         USART2_Setup();
         ADNS3080PinsSetup();
@@ -30,6 +30,9 @@ public:
 
     // конфигурация таймера TIM6
     void Timer_Setup();
+
+    // конфигурация портов MAC контроллера
+    void MAC_Setup();
 
     // получаем данные по SPI1
     // void DMA2_SPI1_Rx_Recv(uint8_t *tx_buffer, uint8_t *rx_buffer, uint16_t size);
@@ -48,10 +51,8 @@ public:
 
     // конфигурируем SPI для двух датчиков
     void SPI1_Setup();
-    void SPI2_Setup();
     void SPI3_Setup();
     
     void USART2_Setup();
     // void Interrupt_Setup();
-    // void responseID();
 };
