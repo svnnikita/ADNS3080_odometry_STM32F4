@@ -17,31 +17,32 @@ ADNS3080::ADNS3080(const Adns3080Pins &pins)
 	  _reset_gpio_port(pins.reset_gpio_port),
 	  _reset_gpio_pin(pins.reset_gpio_pin)
 {
-	// отправим сообщение для отладки
-    // usart_send_blocking(USART2, 'A');
+	
 }
 
-
-void ADNS3080::setup(const bool led_mode, const bool resolution) 
+// сконфигурируем датчик
+bool ADNS3080::setup(const bool led_mode, const bool resolution) 
 {
+	// перезапускаем датчик
+    reset();
+    delay_us(ADNS3080_T_IN_RST);
+
 	// конфигурируем датчик:
 	//                          LED Shutter     High resolution
 	uint8_t mask = 0b00000000 | led_mode << 6 | resolution << 4;
 
 	// записываем конфигурацию в датчик
     writeRegister(ADNS3080_CONFIGURATION_BITS, mask);
-}
+	delay_us(ADNS3080_T_SWW);
 
-bool ADNS3080::checkConfiguration(const bool led_mode, const bool resolution)
-{
-	// маска для конфигурации
-	uint8_t mask = (led_mode   ? (1 << 6) : 0) |
-                    (resolution ? (1 << 4) : 0);
-
-	volatile uint8_t config1 = readRegister(ADNS3080_CONFIGURATION_BITS);
+	// читаем регистр конфигурации
 	uint8_t config = readRegister(ADNS3080_CONFIGURATION_BITS);
+	delay_us(ADNS3080_T_SWW);
 
-	if (config == mask)
+	uint8_t result = readRegister(ADNS3080_PRODUCT_ID);
+	delay_us(ADNS3080_T_SWW);
+
+	if (config == mask && result == ADNS3080_PRODUCT_ID_VALUE)
 		return true;
 	else 
 		return false;
@@ -106,38 +107,18 @@ uint8_t ADNS3080::readRegister(const uint8_t reg)
 
     csLow();
 
-	while (SPI_SR(_spi) & SPI_SR_RXNE) {
-		(void)SPI_DR(_spi);   // чтение регистра данных для сброса RXNE
-    }
-
 	// отправляем адрес регистра
-    spi_send(_spi, reg);
-	// ждём конец передачи адреса
-    while (!(SPI_SR(_spi) & SPI_SR_TXE));
+	spi_xfer(_spi, reg);
 
-    // в зависимости от адреса регистра устанавливаем задержку
-	// для регистров проверки движения и запуска пакетного режима
-	// устанавливается задержка 75 мкс
-    if (reg == ADNS3080_MOTION || reg == ADNS3080_MOTION_BURST)
+	if (reg == ADNS3080_MOTION || reg == ADNS3080_MOTION_BURST)
         delay_us(ADNS3080_T_SRAD_MOT);
     else
 		// для остальных регистров задержка 50 мкс
         delay_us(ADNS3080_T_SRAD);
 
-	// отправляем dummy‑байт, генерируем тактовые импульсы 
-	// и одновременно получаем данные из регистра
-    spi_send(_spi, 0x00);    
-	// дожидаемся отправки dummy‑байта
-    while (!(SPI_SR(_spi) & SPI_SR_TXE));
-	// ждем, пока придут все данные
-    while (!(SPI_SR(_spi) & SPI_SR_RXNE));
-	// читаем принятые данные
-    data = spi_read(_spi);
+	data = spi_xfer(_spi, 0x00);
 
-	// ждем, пока освободится шина
-    while (SPI_SR(_spi) & SPI_SR_BSY);
-
-    csHigh();
+	csHigh();
 
 	delay_us(ADNS3080_T_SWW);
 

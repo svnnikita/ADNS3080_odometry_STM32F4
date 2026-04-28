@@ -85,7 +85,8 @@ void SetupPeriph::SPI1_Setup()
     gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
     gpio_set_output_options(GPIOB, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO5);
 
-    rcc_periph_reset_pulse(RST_SPI1);
+    spi_disable(SPI1);
+    // rcc_periph_reset_pulse(RST_SPI1);
 
     // настраиваем SPI1 как мастер
     // т.к. SPI1 тактируется от APB2 (84 МГц), то 
@@ -100,11 +101,11 @@ void SetupPeriph::SPI1_Setup()
                     // тактовый сигнал удерживается в нуле
                     // при этом передний фронт, по которому происходит захват
                     // данных, определяется как скачок 0-1
-                    0,
+                    SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
                     
                     // фаза CPHA = 0 -- данные фиксируются по
                     // переднему фронту тактового сигнала
-                    0,
+                    SPI_CR1_CPHA_CLK_TRANSITION_2,
 
                     SPI_CR1_DFF_8BIT,                   // формат кадра данных - 8 бит
                     SPI_CR1_MSBFIRST);                  // первый бит - старший

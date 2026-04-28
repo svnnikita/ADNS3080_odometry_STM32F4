@@ -61,9 +61,7 @@ public:
 	ADNS3080(const Adns3080Pins &pins);	
 
 	// инициализация датчика
-	void setup(const bool led_mode = true, const bool resolution = true);
-
-	bool checkConfiguration(const bool led_mode, const bool resolution);
+	bool setup(const bool led_mode = true, const bool resolution = true);
 
 	// загружаем SROM
 	void loadSROM(const uint8_t *srom_data, uint16_t length);

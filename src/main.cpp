@@ -34,28 +34,22 @@ ADNS3080 l_camera = ADNS3080(l_camera_pins);
 
 
 int main(void) {
+    // небольшая задержка для включения датчика
+    for (volatile uint32_t i = 0; i < 2000000; i++);
+    
     // сконфигурируем датчик
     // включаем подсветку и устанавливаем высокое разрешение
-    l_camera.setup(true, true);
-
-    l_camera.delay_us(ADNS3080_T_SWW);
-    
-    // volatile uint8_t result1 = l_camera.readRegister(ADNS3080::ADNS3080_CONFIGURATION_BITS);
-
-    // l_camera.delay_us(ADNS3080_T_SWW);
-
-    volatile uint8_t result = l_camera.readRegister(ADNS3080::ADNS3080_PRODUCT_ID);
-
+    volatile uint8_t setup = l_camera.setup(true, true);
     l_camera.delay_us(ADNS3080_T_SWW);
 
-    if (result == ADNS3080::ADNS3080_PRODUCT_ID_VALUE) {
+    // проверяем корректность подключения
+    if (setup == true) {
         usart_send_blocking(USART2, 't');
     } else { 
         usart_send_blocking(USART2, 'f');
     }
         
     while (1) {
-        // usart_send_blocking(USART2, 'A');
-        // for (volatile uint32_t i = 0; i < 1000000; i++);
+       
     }
 }
