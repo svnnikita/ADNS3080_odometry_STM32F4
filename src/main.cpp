@@ -1,5 +1,7 @@
 #include <libopencm3/stm32/rcc.h> 
 #include <libopencm3/stm32/gpio.h>
+#include <libopencm3/ethernet/mac.h>
+#include <libopencm3/ethernet/phy.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/usart.h>
 #include <cstdio>
@@ -37,39 +39,57 @@ ADNS3080::MotionData l_data;
 
 
 int main(void) {
-    // небольшая задержка для включения датчика
-    for (volatile uint32_t i = 0; i < 2000000; i++);
-    
-    // сконфигурируем датчик
-    // включаем подсветку и устанавливаем высокое разрешение
-    volatile uint8_t setup = l_camera.setup(true, true);
-    l_camera.delay_us(ADNS3080_T_SWW);
+    // инициализируем PHY
+    // читаем id1 микросхемы
+    uint16_t id1 = eth_smi_read(0, 2);
+    // читаем id2 микросхемы
+    uint16_t id2 = eth_smi_read(0, 3);
 
-    // проверяем корректность подключения
-    if (setup == true) {
-        usart_send_blocking(USART2, 't');
-    } else { 
-        usart_send_blocking(USART2, 'f');
+    char buffer[64];
+
+    // составляем строку
+    uint32_t len = 
+            sprintf(buffer, 
+                    "id1: 0x%04X, id2: 0x%04X\r\n", 
+                    id1, id2);
+        
+    // отправляем данные
+    for (uint32_t i = 0; i < len; i++) {
+        usart_send_blocking(USART2, buffer[i]);
     }
 
-    // создаем буффер для создания строки
-    char buffer[64];
-        
+    // // небольшая задержка для включения датчика
+    // for (volatile uint32_t i = 0; i < 2000000; i++);
+    
+    // // сконфигурируем датчик
+    // // включаем подсветку и устанавливаем высокое разрешение
+    // volatile uint8_t setup = l_camera.setup(true, true);
+    // l_camera.delay_us(ADNS3080_T_SWW);
+
+    // // проверяем корректность подключения
+    // if (setup == true) {
+    //     usart_send_blocking(USART2, 't');
+    // } else { 
+    //     usart_send_blocking(USART2, 'f');
+    // }
+
+    // // создаем буффер для создания строки
+    // char buffer[64];
+
     while (1) {
-        // запускаем режим считывания смещения
-        l_camera.motionBurst(l_data);
+        // // запускаем режим считывания смещения
+        // l_camera.motionBurst(l_data);
 
-        // формируем строку
-        uint32_t len = 
-            sprintf(buffer, 
-                    "M: %d, X: %4d, Y: %4d, SQ: %3u, SH: %d, MP: %u\r\n", 
-                    l_data.motion, l_data.dx, l_data.dy, 
-                    l_data.squal, l_data.shutter, l_data.max_pix);
+        // // формируем строку
+        // uint32_t len = 
+        //     sprintf(buffer, 
+        //             "M: %d, X: %4d, Y: %4d, SQ: %3u, SH: %d, MP: %u\r\n", 
+        //             l_data.motion, l_data.dx, l_data.dy, 
+        //             l_data.squal, l_data.shutter, l_data.max_pix);
         
-        // отправляем данные
-        for (uint32_t i = 0; i < len; i++) {
-            usart_send_blocking(USART2, buffer[i]);
-        }
-
+        // // отправляем данные
+        // for (uint32_t i = 0; i < len; i++) {
+        //     usart_send_blocking(USART2, buffer[i]);
+        // }
     }
 }

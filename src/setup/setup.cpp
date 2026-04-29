@@ -1,13 +1,16 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/timer.h>
+#include <libopencm3/stm32/syscfg.h>
+#include <libopencm3/ethernet/mac.h>
+#include <libopencm3/ethernet/phy.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/usart.h>
 
 #include "setup/setup.hpp"
 
 // тактирование
-void SetupPeriph::Clock_Setup() 
+void SetupPeriph::clockSetup() 
 {
     // разгоняем мк
     rcc_clock_setup_pll(&rcc_hse_16mhz_3v3[RCC_CLOCK_3V3_168MHZ]);
@@ -23,17 +26,11 @@ void SetupPeriph::Clock_Setup()
     // rcc_periph_clock_enable(RCC_DMA1);
     // rcc_periph_clock_enable(RCC_DMA2);
 
-    // тактируем модуль MAC
-    // rcc_periph_clock_enable(RCC_ETHMAC);    // сам модуль
-    // rcc_periph_clock_enable(RCC_ETHMACTX);  // линии передачи
-    // rcc_periph_clock_enable(RCC_ETHMACRX);  // линии приема
-
     // тактирование таймера TIM6
     rcc_periph_clock_enable(RCC_TIM6);
 
     // тактирование SPI
     rcc_periph_clock_enable(RCC_SPI1);
-    // rcc_periph_clock_enable(RCC_SPI2);
     rcc_periph_clock_enable(RCC_SPI3);
     
     // тактирование USART2
@@ -41,7 +38,7 @@ void SetupPeriph::Clock_Setup()
 }
 
 // конфигурация таймера для отсчета временных задержек
-void SetupPeriph::Timer_Setup() 
+void SetupPeriph::timerSetup() 
 {
 	// конфигурация вывода
     gpio_mode_setup(GPIOD, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO15);
@@ -52,20 +49,62 @@ void SetupPeriph::Timer_Setup()
 	timer_enable_counter(TIM6);
 }
 
-// конфигурация портов MAC контроллера
-void SetupPeriph::MAC_Setup()
-{
-    // MDIO
-    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO2);
-    gpio_set_af(GPIOA, GPIO_AF11, GPIO2);
+// задержка в микросекундах
+void SetupPeriph::delayUs(uint16_t delay) {
+	// ждем реакции датчика
+	uint32_t start = timer_get_counter(TIM6);
+    while ((uint16_t)(timer_get_counter(TIM6) - start) < delay) {
+		__asm__("NOP");
+	}
+}
 
-    // MDC
-    gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO1);
-    gpio_set_af(GPIOC, GPIO_AF11, GPIO1);
+// конфигурация портов MAC контроллера
+void SetupPeriph::macSetup()
+{
+    // RESET
+    gpio_mode_setup(GPIOE, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO15);
+    // сбрасываем состояние phy
+    gpio_clear(GPIOE, GPIO15);
+
+    // удерживаем сигнал nRST 400 мкс в состоянии 0
+    delayUs(T_nRSTIA);
+    // поднимаем сигнал перезагрузки
+    gpio_set(GPIOE, GPIO15);
+
+    // ждем 5 мс (5000 мкс) для доступа к PHY по SMI
+    delayUs(T_AFTERnRST);
+
+    // тактируем контроллер конфигурации системы
+    // (используется для выбора Ethernet PHY)
+    rcc_periph_clock_enable(RCC_SYSCFG);
+
+    // до тактирования MAC устанавливаем режим RMII
+    // для этого выставляем бит 23 MII_RMII_SEL в единицу
+    SYSCFG_PMC |= (1 << 23);
+
+    // тактируем модуль MAC
+    rcc_periph_clock_enable(RCC_ETHMAC);
+    rcc_periph_clock_enable(RCC_ETHMACTX);
+    rcc_periph_clock_enable(RCC_ETHMACRX);
+
+    // REF_CLK, MDIO, CRS_DV
+    gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO1 | GPIO2 | GPIO7);
+    gpio_set_af(GPIOA, GPIO_AF11, GPIO1 | GPIO2 | GPIO7);
+
+    // TXEN, TXD0 и TXD1
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12 | GPIO13);
+    gpio_set_af(GPIOB, GPIO_AF11, GPIO11 | GPIO12 | GPIO13);
+
+    // MDC, RXD0, RXD1
+    gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO1 | GPIO4 | GPIO5);
+    gpio_set_af(GPIOC, GPIO_AF11, GPIO1 | GPIO4 | GPIO5);
+
+    // инициализируем ethernet, настраиваем тактирование и инициализируем DMA
+    eth_init(0, ETH_CLK_150_168MHZ);
 }
 
 // SPI1 -- левая камера
-void SetupPeriph::SPI1_Setup() 
+void SetupPeriph::spi1Setup() 
 {
     // конфигурируем порты SPI1 на альтернативные функции:
     // NSS = PA4
@@ -119,7 +158,7 @@ void SetupPeriph::SPI1_Setup()
 }
 
 // SPI3 -- правая камера
-void SetupPeriph::SPI3_Setup() 
+void SetupPeriph::spi3Setup() 
 {
     // конфигурируем порты SPI3 на альтернативные функции:
     // NSS = PD0
@@ -153,9 +192,8 @@ void SetupPeriph::SPI3_Setup()
     spi_enable(SPI3);
 }
 
-
 // конфигурируем вспомогательные выводы датчика RST и NPD
-void SetupPeriph::ADNS3080PinsSetup()
+void SetupPeriph::adns3080PinsSetup()
 {
     // правый датчик 
     // настраиваем вывод RESET и устанавливаем его в ноль
@@ -175,7 +213,8 @@ void SetupPeriph::ADNS3080PinsSetup()
     
 }
 
-void SetupPeriph::USART2_Setup() 
+// конфигурация USART2
+void SetupPeriph::usart2Setup() 
 {
     // настраиваем вывод USART2_TX
     gpio_mode_setup(GPIOD, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO5);
@@ -194,3 +233,5 @@ void SetupPeriph::USART2_Setup()
     // включаем UART
     usart_enable(USART2);
 }
+
+
